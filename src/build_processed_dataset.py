@@ -1,45 +1,49 @@
+"""
+build_processed_dataset.py
 
+Incremental, memory-efficient Parquet dataset builder for the
+5G-V2X DoS Detection Project (VeReMi NextGen dataset).
+
+This builder flattens raw JSON vehicular message logs into the canonical
+project schema, preserving nanosecond integer timestamps, exact integer
+message IDs, and binary labels.
+
+SAFETY POLICY:
+  - This builder WILL NOT overwrite an existing processed dataset without
+    an explicit `--overwrite` flag.
+  - Temporary files are validated before promotion to prevent corrupted outputs.
+  - Test/sample mode is strictly separated from production builds.
+"""
+
+import argparse
+import gc
 import json
+import sys
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 
-# ============================================================
-# CONFIGURATION
-# Start with a small sample. Switch TEST_MODE to False only
-# after the sample output passes validation.
-# ============================================================
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_ROOT = PROJECT_ROOT / "data" / "raw"
 OUTPUT_ROOT = PROJECT_ROOT / "processed_data"
 
-CONDITION = "highway_7"
-SPLIT = "Test"
-
-NORMAL_SCENARIO = "InTAS_highway_7"
-DOS_SCENARIO = "InTAS_highway_7_dosAttack"
-
-TEST_MODE = False
-MAX_FILES_PER_SCENARIO = 10
-
-OUTPUT_DIR = OUTPUT_ROOT / CONDITION
-
-if TEST_MODE:
-    OUTPUT_FILE = OUTPUT_DIR / "test_sample.parquet"
-else:
-    OUTPUT_FILE = OUTPUT_DIR / "test.parquet"
-
-TEMP_FILE = OUTPUT_DIR / (OUTPUT_FILE.name + ".tmp")
-
 BATCH_SIZE = 10_000
-PROGRESS_EVERY = 5
+PROGRESS_EVERY = 25
+MAX_TEST_FILES = 10
 
 
 # ============================================================
-# OUTPUT SCHEMA
+# CANONICAL OUTPUT SCHEMA
+#
+# Must match the reference schema of all six primary splits:
+#   - Identifiers: large_string for vehicle IDs, int64 for message_id
+#   - Timestamps & Delay: int64 (nanoseconds)
+#   - Kinematic & Noise features: float64 (double)
+#   - Driver profiles: large_string
+#   - Target: int64 (0: Legitimate, 1: DoS Malicious)
+#   - Optional road edge: float64 (double, NaN for Normal scenario)
 # ============================================================
 
 COLUMNS = [
@@ -74,12 +78,12 @@ COLUMNS = [
 ]
 
 SCHEMA = pa.schema([
-    ("sender_id", pa.string()),
-    ("sender_alias", pa.string()),
-    ("message_id", pa.string()),
-    ("send_time", pa.float64()),
-    ("receive_time", pa.float64()),
-    ("delay", pa.float64()),
+    ("sender_id", pa.large_string()),
+    ("sender_alias", pa.large_string()),
+    ("message_id", pa.int64()),
+    ("send_time", pa.int64()),
+    ("receive_time", pa.int64()),
+    ("delay", pa.int64()),
     ("sender_pos_x", pa.float64()),
     ("sender_pos_y", pa.float64()),
     ("sender_pos_z", pa.float64()),
@@ -98,192 +102,134 @@ SCHEMA = pa.schema([
     ("receiver_speed_noise", pa.float64()),
     ("receiver_acceleration_noise", pa.float64()),
     ("receiver_heading_noise", pa.float64()),
-    ("sender_driver_profile", pa.string()),
-    ("receiver_driver_profile", pa.string()),
-    ("label", pa.int8()),
+    ("sender_driver_profile", pa.large_string()),
+    ("receiver_driver_profile", pa.large_string()),
+    ("label", pa.int64()),
     ("distance_to_road_edge", pa.float64()),
 ])
 
 
 # ============================================================
-# GENERAL HELPERS
+# PARSING HELPERS
 # ============================================================
 
 def first_present(dictionary, *keys):
+    """Return the first non-None value among keys in dictionary."""
     if not isinstance(dictionary, dict):
         return None
-
     for key in keys:
         if key in dictionary and dictionary[key] is not None:
             return dictionary[key]
-
     return None
 
 
 def to_float(value):
+    """Safely convert value to finite float or None."""
     if value is None or isinstance(value, bool):
         return None
-
     try:
         result = float(value)
-
         if result != result or abs(result) == float("inf"):
             return None
-
         return result
+    except (TypeError, ValueError, OverflowError):
+        return None
 
+
+def to_int(value):
+    """Safely convert string or numeric value to integer or None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
     except (TypeError, ValueError, OverflowError):
         return None
 
 
 def to_string(value):
+    """Safely convert value to string or None."""
     if value is None:
         return None
-
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
-
     return str(value)
 
 
-# ============================================================
-# JSON STRUCTURE HANDLING
-#
-# Supports:
-#   1. A list of records
-#   2. A single record
-#   3. A wrapper dictionary containing {"messages": [...]}
-#
-# Unexpected structures raise an error instead of silently
-# producing a malformed dataset.
-# ============================================================
-
 def extract_records(data, path):
+    """
+    Extract a list of message records from raw JSON.
+    Handles lists, wrapper dicts {'messages': [...]}, and single records.
+    """
     if isinstance(data, list):
         records = data
-
     elif isinstance(data, dict) and "messages" in data:
         records = data["messages"]
-
         if not isinstance(records, list):
-            raise ValueError(
-                f"'messages' must contain a list in {path}"
-            )
-
+            raise ValueError(f"'messages' must contain a list in {path}")
     elif isinstance(data, dict):
-        # A single record must look like a vehicle-message record.
-        if (
-            "sender" in data
-            or "receiver" in data
-            or "attacker" in data
-        ):
+        if "sender" in data or "receiver" in data or "attacker" in data:
             records = [data]
         else:
             raise ValueError(
                 f"Unexpected JSON dictionary structure in {path}. "
-                f"Top-level keys: {list(data.keys())}"
+                f"Keys: {list(data.keys())}"
             )
-
     else:
         raise ValueError(
-            f"Unsupported JSON structure in {path}: "
-            f"{type(data).__name__}"
+            f"Unsupported JSON structure in {path}: {type(data).__name__}"
         )
 
     for index, record in enumerate(records):
         if not isinstance(record, dict):
-            raise ValueError(
-                f"Record {index} in {path} is not a JSON object."
-            )
+            raise ValueError(f"Record {index} in {path} is not a JSON object.")
 
     return records
 
 
-# ============================================================
-# POSITION PARSING
-# Supports lists, dictionaries, and comma-separated strings.
-# Examples:
-#   [12.4, 35.6, 0.0]
-#   {"x": 12.4, "y": 35.6, "z": 0.0}
-#   "12.4,35.6,0.0"
-# ============================================================
-
 def parse_position(vehicle):
+    """Parse [x, y, z] coordinate representation."""
     position = first_present(vehicle, "pos", "position")
 
     if isinstance(position, str):
         parts = [part.strip() for part in position.split(",")]
-
         if len(parts) < 2:
             return None, None, None
-
         x = to_float(parts[0])
         y = to_float(parts[1])
         z = to_float(parts[2]) if len(parts) > 2 else None
-
         return x, y, z
 
     if isinstance(position, (list, tuple)):
         x = to_float(position[0]) if len(position) > 0 else None
         y = to_float(position[1]) if len(position) > 1 else None
         z = to_float(position[2]) if len(position) > 2 else None
-
         return x, y, z
 
     if isinstance(position, dict):
         x = to_float(first_present(position, "x", "X", "pos_x"))
         y = to_float(first_present(position, "y", "Y", "pos_y"))
         z = to_float(first_present(position, "z", "Z", "pos_z"))
-
         return x, y, z
 
     return None, None, None
 
 
-# ============================================================
-# VEHICLE FEATURE PARSING
-# ============================================================
-
 def parse_vehicle(vehicle, prefix):
+    """Parse vehicle kinematics, noise, and driver profile."""
     if not isinstance(vehicle, dict):
         vehicle = {}
 
     pos_x, pos_y, pos_z = parse_position(vehicle)
 
-    speed = to_float(
-        first_present(vehicle, "spd", "speed")
-    )
+    speed = to_float(first_present(vehicle, "spd", "speed"))
+    acceleration = to_float(first_present(vehicle, "acl", "acceleration", "acc"))
+    heading = to_float(first_present(vehicle, "hed", "heading"))
 
-    acceleration = to_float(
-        first_present(vehicle, "acl", "acceleration", "acc")
-    )
+    speed_noise = to_float(first_present(vehicle, "spd_noise", "speed_noise"))
+    acceleration_noise = to_float(first_present(vehicle, "acl_noise", "acceleration_noise", "acc_noise"))
+    heading_noise = to_float(first_present(vehicle, "hed_noise", "heading_noise"))
 
-    heading = to_float(
-        first_present(vehicle, "hed", "heading")
-    )
-
-    speed_noise = to_float(
-        first_present(vehicle, "spd_noise", "speed_noise")
-    )
-
-    acceleration_noise = to_float(
-        first_present(
-            vehicle, "acl_noise", "acceleration_noise", "acc_noise"
-        )
-    )
-
-    heading_noise = to_float(
-        first_present(vehicle, "hed_noise", "heading_noise")
-    )
-
-    driver_profile = to_string(
-        first_present(
-            vehicle,
-            "driversProfile",
-            "driver_profile",
-            "driverProfile",
-        )
-    )
+    driver_profile = to_string(first_present(vehicle, "driversProfile", "driver_profile", "driverProfile"))
 
     return {
         f"{prefix}_pos_x": pos_x,
@@ -299,35 +245,20 @@ def parse_vehicle(vehicle, prefix):
     }
 
 
-# ============================================================
-# RECORD PARSING AND LABELS
-#
-# Normal scenario records -> label 0
-# DoS scenario records -> use the dataset's attacker field
-#
-# This is the project's intended binary-label convention.
-# Invalid or missing DoS labels are rejected.
-# ============================================================
-
 def parse_record(record, scenario_label):
+    """
+    Parse a single raw JSON message into a flat schema dictionary.
+
+    Label Policy:
+      - Normal scenario (scenario_label = 0) -> label = 0
+      - DoS scenario (scenario_label = 1) -> label = int(record['attacker'])
+    """
     sender = record.get("sender", {})
     receiver = record.get("receiver", {})
 
-    if not isinstance(sender, dict):
-        sender = {}
-
-    if not isinstance(receiver, dict):
-        receiver = {}
-
-    send_time = to_float(
-        first_present(record, "sendTime", "send_time")
-    )
-
-    receive_time = to_float(
-        first_present(record, "rcvTime", "receive_time", "receiveTime")
-    )
-
-    delay = to_float(first_present(record, "delay"))
+    send_time = to_int(first_present(record, "sendTime", "send_time"))
+    receive_time = to_int(first_present(record, "rcvTime", "receive_time", "receiveTime"))
+    delay = to_int(first_present(record, "delay"))
 
     if delay is None and send_time is not None and receive_time is not None:
         delay = receive_time - send_time
@@ -335,26 +266,19 @@ def parse_record(record, scenario_label):
     if scenario_label == 0:
         label = 0
     else:
-        attacker_value = first_present(record, "attacker")
-
-        if attacker_value not in (0, 1, False, True):
+        attacker_val = first_present(record, "attacker")
+        if attacker_val not in (0, 1, "0", "1", False, True):
             raise ValueError(
-                "Invalid or missing attacker label in DoS scenario: "
-                f"{attacker_value!r}"
+                f"Missing or invalid 'attacker' field in DoS scenario: {attacker_val!r}"
             )
+        label = int(attacker_val)
 
-        label = int(attacker_value)
+    message_id = to_int(first_present(record, "messageID", "message_id", "messageId"))
 
     row = {
-        "sender_id": to_string(
-            first_present(record, "sender_id", "senderID")
-        ),
-        "sender_alias": to_string(
-            first_present(record, "sender_alias", "senderAlias")
-        ),
-        "message_id": to_string(
-            first_present(record, "messageID", "message_id", "messageId")
-        ),
+        "sender_id": to_string(first_present(record, "sender_id", "senderID")),
+        "sender_alias": to_string(first_present(record, "sender_alias", "senderAlias")),
+        "message_id": message_id,
         "send_time": send_time,
         "receive_time": receive_time,
         "delay": delay,
@@ -364,36 +288,28 @@ def parse_record(record, scenario_label):
     row.update(parse_vehicle(sender, "sender"))
     row.update(parse_vehicle(receiver, "receiver"))
 
-    distance = to_float(
-        first_present(record, "distance_to_road_edge")
-    )
-
-    if distance is None:
-        distance = to_float(
-            first_present(sender, "distance_to_road_edge")
-        )
+    distance = to_float(first_present(record, "distance_to_road_edge"))
+    if distance is None and isinstance(sender, dict):
+        distance = to_float(first_present(sender, "distance_to_road_edge"))
 
     row["distance_to_road_edge"] = distance
 
-    return {column: row.get(column) for column in COLUMNS}
+    return {col: row.get(col) for col in COLUMNS}
 
 
 # ============================================================
-# PARQUET BATCH WRITING
+# BATCH WRITING & VALIDATION
 # ============================================================
 
 def flush_batch(batch, writer):
     if not batch:
         return
-
     table = pa.Table.from_pylist(batch, schema=SCHEMA)
     writer.write_table(table, row_group_size=BATCH_SIZE)
     batch.clear()
 
 
 def process_json_file(path, scenario_label, batch, writer, stats):
-    # Note: json.load reads one complete source file into memory.
-    # Batch writing limits the additional processed-row buffer.
     with open(path, "r", encoding="utf-8") as file:
         data = json.load(file)
 
@@ -401,7 +317,6 @@ def process_json_file(path, scenario_label, batch, writer, stats):
 
     for record in records:
         row = parse_record(record, scenario_label)
-
         batch.append(row)
         stats["records"] += 1
         stats["label_counts"][row["label"]] += 1
@@ -411,113 +326,114 @@ def process_json_file(path, scenario_label, batch, writer, stats):
             stats["batches_written"] += 1
 
 
-# ============================================================
-# FILE DISCOVERY
-# ============================================================
-
-def get_json_files(scenario_name):
-    folder = RAW_ROOT / scenario_name / SPLIT
-
-    if not folder.exists():
-        raise FileNotFoundError(f"Scenario folder not found: {folder}")
-
-    files = sorted(folder.rglob("*.json"))
-
-    if not files:
-        raise FileNotFoundError(f"No JSON files found in: {folder}")
-
-    if TEST_MODE:
-        files = files[:MAX_FILES_PER_SCENARIO]
-
-    return files
-
-
-# ============================================================
-# VALIDATE TEMPORARY PARQUET BEFORE PUBLISHING
-# ============================================================
-
 def validate_parquet(path, expected_rows, require_both_classes):
     parquet_file = pq.ParquetFile(path)
-
     actual_rows = parquet_file.metadata.num_rows
     actual_names = parquet_file.schema_arrow.names
     actual_types = parquet_file.schema_arrow.types
 
     if actual_rows != expected_rows:
         raise ValueError(
-            f"Row-count mismatch: expected {expected_rows:,}, "
-            f"found {actual_rows:,}"
+            f"Row count mismatch: expected {expected_rows:,}, found {actual_rows:,}"
         )
 
     if actual_names != COLUMNS:
         raise ValueError(
-            "Column names or order do not match the expected schema."
+            f"Column names mismatch: expected {COLUMNS}, found {actual_names}"
         )
 
     if actual_types != SCHEMA.types:
         raise ValueError(
-            "Column data types do not match the expected schema.\n"
-            f"Expected: {SCHEMA.types}\n"
-            f"Actual:   {actual_types}"
+            f"Column types mismatch:\nExpected: {SCHEMA.types}\nActual:   {actual_types}"
         )
 
-    # Count labels in batches without loading the full dataset into memory.
     label_counts = {0: 0, 1: 0}
+    for batch in parquet_file.iter_batches(columns=["label"], batch_size=BATCH_SIZE):
+        labels = batch.column(0).to_pylist()
+        for lbl in labels:
+            if lbl not in (0, 1):
+                raise ValueError(f"Unexpected label {lbl} in temporary file.")
+            label_counts[lbl] += 1
 
-    for record_batch in parquet_file.iter_batches(
-        columns=["label"],
-        batch_size=BATCH_SIZE,
-    ):
-        labels = record_batch.column(0).to_pylist()
+    if require_both_classes and (label_counts[0] == 0 or label_counts[1] == 0):
+        raise ValueError(f"Missing class in dataset output: {label_counts}")
 
-        for label in labels:
-            if label not in (0, 1):
-                raise ValueError(f"Unexpected label value: {label!r}")
-
-            label_counts[label] += 1
-
-    if sum(label_counts.values()) != actual_rows:
-        raise ValueError("Validated label counts do not match row count.")
-
-    if require_both_classes and (
-        label_counts[0] == 0 or label_counts[1] == 0
-    ):
-        raise ValueError(
-            f"Missing class in full dataset: {label_counts}"
-        )
-
-    print("\nTemporary Parquet validation passed.")
-    print(f"Rows:       {actual_rows:,}")
-    print(f"Columns:    {len(actual_names)}")
-    print(f"Label 0:    {label_counts[0]:,}")
-    print(f"Label 1:    {label_counts[1]:,}")
+    print("\nTemporary Parquet validation passed:")
+    print(f"  Rows:    {actual_rows:,}")
+    print(f"  Columns: {len(actual_names)}")
+    print(f"  Label 0: {label_counts[0]:,}")
+    print(f"  Label 1: {label_counts[1]:,}")
 
     return label_counts
 
 
 # ============================================================
-# MAIN BUILDER
+# MAIN BUILD EXECUTION
 # ============================================================
 
-def build_split():
+def build_split(condition, split, test_mode=False, overwrite=False):
+    split_cap = split.capitalize()
+    split_lower = split.lower()
+
+    output_dir = OUTPUT_ROOT / condition
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if test_mode:
+        output_file = output_dir / f"{split_lower}_sample.parquet"
+    else:
+        output_file = output_dir / f"{split_lower}.parquet"
+
+    temp_file = output_dir / f"{output_file.name}.tmp"
+
     print("=" * 65)
-    print("INCREMENTAL V2X DATASET BUILDER")
+    print("INCREMENTAL 5G-V2X DATASET BUILDER")
     print("=" * 65)
-    print(f"Condition: {CONDITION}")
-    print(f"Split:     {SPLIT}")
-    print(f"Test mode: {TEST_MODE}")
-    print(f"Output:    {OUTPUT_FILE}")
+    print(f"Condition:  {condition}")
+    print(f"Split:      {split_cap}")
+    print(f"Test mode:  {test_mode}")
+    print(f"Output:     {output_file}")
+    print(f"Overwrite:  {overwrite}")
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Critical Safety Check: Prevent accidental destruction of existing datasets
+    if output_file.exists() and not overwrite:
+        print("\n" + "!" * 65)
+        print("CRITICAL SAFETY GUARD TRIGGERED:")
+        print(f"Target file already exists: {output_file}")
+        print("To protect existing data from accidental overwriting,")
+        print("the builder will NOT proceed without the explicit '--overwrite' flag.")
+        print("!" * 65)
+        print("\nAborting safely. No files were modified.")
+        sys.exit(0)
 
-    normal_files = get_json_files(NORMAL_SCENARIO)
-    dos_files = get_json_files(DOS_SCENARIO)
+    normal_scenario = f"InTAS_{condition}"
+    dos_scenario = f"InTAS_{condition}_dosAttack"
 
-    print(f"\nNormal files selected: {len(normal_files):,}")
-    print(f"DoS files selected:    {len(dos_files):,}")
+    normal_dir = RAW_ROOT / normal_scenario / split_cap
+    dos_dir = RAW_ROOT / dos_scenario / split_cap
 
-    if TEMP_FILE.exists():
-        TEMP_FILE.unlink()
+    if not normal_dir.exists():
+        raise FileNotFoundError(f"Normal raw directory not found: {normal_dir}")
+    if not dos_dir.exists():
+        raise FileNotFoundError(f"DoS raw directory not found: {dos_dir}")
+
+    normal_files = sorted(normal_dir.rglob("*.json"))
+    dos_files = sorted(dos_dir.rglob("*.json"))
+
+    if not normal_files:
+        raise FileNotFoundError(f"No Normal JSON files found in {normal_dir}")
+    if not dos_files:
+        raise FileNotFoundError(f"No DoS JSON files found in {dos_dir}")
+
+    if test_mode:
+        normal_files = normal_files[:MAX_TEST_FILES]
+        dos_files = dos_files[:MAX_TEST_FILES]
+
+    print(f"\nFiles to process:")
+    print(f"  Normal: {len(normal_files):,}")
+    print(f"  DoS:    {len(dos_files):,}")
+
+    if temp_file.exists():
+        temp_file.unlink()
 
     stats = {
         "records": 0,
@@ -530,71 +446,91 @@ def build_split():
     writer = None
 
     try:
-        writer = pq.ParquetWriter(
-            str(TEMP_FILE),
-            SCHEMA,
-            compression="snappy",
-        )
+        writer = pq.ParquetWriter(str(temp_file), SCHEMA, compression="snappy")
 
         scenarios = [
             ("NORMAL", normal_files, 0),
             ("DOS", dos_files, 1),
         ]
 
-        for scenario_name, files, scenario_label in scenarios:
-            print(f"\nProcessing {scenario_name} scenario...")
-
-            for index, path in enumerate(files, start=1):
-                process_json_file(
-                    path,
-                    scenario_label,
-                    batch,
-                    writer,
-                    stats,
-                )
-
+        for scen_name, files, scen_label in scenarios:
+            print(f"\nProcessing {scen_name} scenario ({len(files)} files)...")
+            for idx, path in enumerate(files, start=1):
+                process_json_file(path, scen_label, batch, writer, stats)
                 stats["files_processed"] += 1
 
-                if index % PROGRESS_EVERY == 0 or index == len(files):
+                if idx % PROGRESS_EVERY == 0 or idx == len(files):
                     print(
-                        f"{scenario_name}: {index:,}/{len(files):,} files | "
-                        f"Records: {stats['records']:,} | "
-                        f"Labels: {stats['label_counts']}"
+                        f"  {scen_name}: {idx:,}/{len(files):,} files | "
+                        f"Records: {stats['records']:,} | Labels: {stats['label_counts']}"
                     )
 
         flush_batch(batch, writer)
         writer.close()
         writer = None
 
-        # Validate the temporary output BEFORE replacing any existing file.
+        # Validate temporary parquet before replacing destination
         validate_parquet(
-            TEMP_FILE,
+            temp_file,
             expected_rows=stats["records"],
-            require_both_classes=not TEST_MODE,
+            require_both_classes=not test_mode,
         )
 
-        # Publish only after successful validation.
-        TEMP_FILE.replace(OUTPUT_FILE)
+        # Atomic replacement only after validation
+        temp_file.replace(output_file)
+
+        print("\n" + "=" * 65)
+        print("BUILD SUCCESSFUL")
+        print("=" * 65)
+        print(f"Published file: {output_file}")
+        print(f"Total records:  {stats['records']:,}")
+        print(f"Labels:         {stats['label_counts']}")
 
     except Exception:
         if writer is not None:
             writer.close()
-
-        if TEMP_FILE.exists():
-            TEMP_FILE.unlink()
-
+        if temp_file.exists():
+            temp_file.unlink()
         raise
 
-    print("\n" + "=" * 65)
-    print("BUILD COMPLETE")
-    print("=" * 65)
-    print(f"Files processed: {stats['files_processed']:,}")
-    print(f"Records:         {stats['records']:,}")
-    print(f"Label 0:         {stats['label_counts'][0]:,}")
-    print(f"Label 1:         {stats['label_counts'][1]:,}")
-    print(f"Saved to:        {OUTPUT_FILE}")
-    print("Final output was published only after validation.")
+    finally:
+        gc.collect()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Incremental 5G-V2X Dataset Builder with Safety Guards."
+    )
+    parser.add_argument(
+        "--condition",
+        choices=["highway_2", "highway_7"],
+        default="highway_2",
+        help="Highway condition to process (default: highway_2).",
+    )
+    parser.add_argument(
+        "--split",
+        choices=["Train", "Validation", "Test", "train", "validation", "test"],
+        default="Validation",
+        help="Split to process (default: Validation).",
+    )
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="Run on a small sample of files into a *_sample.parquet file.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Explicitly permit overwriting an existing output dataset.",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    build_split()
+    args = parse_args()
+    build_split(
+        condition=args.condition,
+        split=args.split,
+        test_mode=args.test_mode,
+        overwrite=args.overwrite,
+    )
