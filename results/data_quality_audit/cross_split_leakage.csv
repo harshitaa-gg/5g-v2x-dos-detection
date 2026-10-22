@@ -1,0 +1,3 @@
+condition,train_senders,val_senders,test_senders,sender_overlap_train_val,sender_overlap_train_test,sender_overlap_val_test,train_broadcast_messages,val_broadcast_messages,test_broadcast_messages,message_overlap_train_val,message_overlap_train_test,message_overlap_val_test
+highway_2,482,152,476,2,180,89,27625,10153,26286,0,0,0
+highway_7,562,221,503,119,59,14,48219,12538,61350,0,0,0

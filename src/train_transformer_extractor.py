@@ -1,27 +1,3 @@
-"""
-src/train_transformer_extractor.py
-==================================
-Trains the Transformer Feature Extractor and extracts frozen 64-dimensional embeddings
-for Highway 2 and Highway 7 (Option B).
-
-Key Safeguards & Methodology:
------------------------------
-1. Data Leakage Prevention:
-   - Training split ONLY is used for gradient updates.
-   - Validation split is used strictly for model selection and early stopping.
-   - Test split is strictly HELD OUT and never seen during training or checkpoint selection.
-2. Early Stopping & Checkpoint Selection:
-   - Evaluated on validation PR-AUC (with validation loss fallback).
-   - Checkpoints:
-     - `models/transformer/checkpoint_latest_{highway}.pt`: Full training state for resuming.
-     - `models/transformer/transformer_best_{highway}.pt`: Best model weights based on val PR-AUC.
-3. Resumability:
-   - `--resume` flag resumes training from the latest checkpoint without restarting or overwriting best.
-4. Embedding Extraction:
-   - Freezes best model and extracts 64-d temporal mean-pooled embeddings for train, val, test.
-   - Saved to `processed_data/transformer_embeddings/{highway}/{split}/embeddings.npz`.
-"""
-
 import argparse
 import json
 import os

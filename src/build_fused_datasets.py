@@ -1,33 +1,3 @@
-"""
-src/build_fused_datasets.py
-===========================
-Phase 3A: Fused Dataset Construction and Multi-Key Alignment Validation.
-
-This script constructs the multimodal fused datasets combining:
-  1. 64-dimensional Transformer embeddings (Phase 2)
-  2. 7 engineered context features (Phase 3)
-
-Two feature sets are produced for each highway and each split:
-  - Full Hybrid (71 features): 64 embeddings + 7 context features
-  - Autonomous Ablation (68 features): 64 embeddings + 4 autonomous context features
-
-Key Safeguards:
----------------
-1. Explicit Key-Based Joining:
-   - Merges on 'window_id' and validates sender_id, start_send_time, end_send_time,
-     and label across all sources. Never relies on row order alone.
-2. Exact Feature Ordering & Deterministic Naming:
-   - Embedding columns: embedding_00 through embedding_63
-   - Context columns: strictly preserves the documented ordering.
-3. Strict Separation of Target and Identifiers:
-   - Predictor matrices strictly exclude window_id, sender_id, timestamps, durations,
-     labels, and auxiliary diagnostics.
-4. Highway and Split Isolation:
-   - Processed split-by-split; zero cross-split history joining.
-5. Comprehensive Integrity Checks:
-   - Exact row count, uniqueness, finite values (no NaNs/Infs), absence of forbidden columns.
-"""
-
 import json
 import os
 import sys

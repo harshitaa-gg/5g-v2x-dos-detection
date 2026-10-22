@@ -1,18 +1,3 @@
-"""
-check_processed_splits.py
-
-Read-only schema and split consistency validator for the 5G-V2X DoS
-Detection Project.
-
-Validates that:
-  - All six processed Parquet files exist and are readable.
-  - Column names, count (28), and column ordering match the project schema.
-  - PyArrow types match across all splits without truncation.
-  - Binary labels are strictly {0, 1} and both classes are present.
-  - Delay integrity holds: delay == receive_time - send_time.
-  - Exit code reflects PASS (0) or FAIL (1) for CI/pipeline integration.
-"""
-
 import sys
 from pathlib import Path
 from collections import Counter

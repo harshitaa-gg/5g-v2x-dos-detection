@@ -1,0 +1,12 @@
+{
+  "sender_driver_profile": [
+    "AGGRESSIVE",
+    "CAUTIOUS",
+    "NORMAL"
+  ],
+  "receiver_driver_profile": [
+    "AGGRESSIVE",
+    "CAUTIOUS",
+    "NORMAL"
+  ]
+}

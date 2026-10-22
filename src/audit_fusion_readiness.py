@@ -1,16 +1,3 @@
-"""
-audit_fusion_readiness.py
-=========================
-Stage 4 — Leakage Audit, Alignment Verification, and Multimodal Fusion Readiness.
-
-This script audits the alignment, schema integrity, detection-time validity,
-and data leakage safeguards between the Transformer sequence branch (X)
-and the XGBoost context branch (C) across all six splits in Highway 2 and Highway 7.
-
-Outputs:
-  - processed_data/fusion_manifest.json (Machine-readable fusion manifest)
-  - results/fusion_readiness_audit_report.md (Comprehensive audit report)
-"""
 
 import json
 import os

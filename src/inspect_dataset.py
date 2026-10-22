@@ -1,13 +1,3 @@
-"""
-Phase 2 - Raw Dataset Inspection
-
-Purpose:
-    Inspect the actual VeReMi NextGen files stored under data/raw/.
-
-This script does NOT modify the raw dataset.
-It only reads files and reports their structure.
-"""
-
 from pathlib import Path
 import json
 

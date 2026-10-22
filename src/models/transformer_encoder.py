@@ -1,19 +1,3 @@
-"""
-src/models/transformer_encoder.py
-=================================
-PyTorch Transformer Feature Extractor for 5G-V2X DoS Detection (Option B).
-
-Architecture Specifications:
-----------------------------
-1. Input Shape: (batch_size, seq_len=10, in_features=9)
-2. Linear Input Projection: Linear(9, 64)
-3. Learned Positional Encoding: Parameter(1, 10, 64)
-4. Transformer Encoder: 2 layers, 4 attention heads, d_ff=128, dropout=0.1, GELU activation
-5. Temporal Pooling: Mean pooling over all 10 timesteps -> 64-dimensional embedding vector
-6. Temporary Classification Head: Linear(64, 32) -> ReLU -> Dropout -> Linear(32, 1)
-   Used strictly during pretraining with BCEWithLogitsLoss to shape discriminative representations.
-"""
-
 from typing import Dict, Optional, Tuple
 
 import torch

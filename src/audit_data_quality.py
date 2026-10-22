@@ -1,21 +1,3 @@
-"""
-audit_data_quality.py
-
-Comprehensive, batch-based, read-only data quality audit script for the
-5G-V2X DoS Detection Project (VeReMi NextGen processed datasets).
-
-Checks:
-  A. Schema and file integrity
-  B. Missing and non-finite values (including scenario breakdown)
-  C. Numeric validity (coordinates, speeds, Z-plane, negative road edge)
-  D. Timestamps and delay consistency (delay = receive_time - send_time, ns precision)
-  E. Duplicates and cross-split leakage
-  F. Label and categorical integrity
-
-Saves machine-readable summaries and a Markdown audit report into:
-  results/data_quality_audit/
-"""
-
 import gc
 import json
 import math

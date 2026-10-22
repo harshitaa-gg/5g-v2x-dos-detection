@@ -1,32 +1,3 @@
-"""
-build_clean_dos_dataset.py
-
-Builds the clean, non-conflicting 5G-V2X DoS detection dataset exclusively from
-the raw DoS attack simulation records (InTAS_highway_2_dosAttack and
-InTAS_highway_7_dosAttack).
-
-Preserves:
-  - Original Train, Validation, and Test partition boundaries.
-  - Documented `attacker` label semantics (0: benign background traffic, 1: DoS attack).
-  - Exact integer nanosecond timestamps and integer message sequence IDs.
-  - Full floating-point kinematics and noise features.
-
-Outputs:
-  processed_data/clean_dos_scenario/
-    ├── highway_2/
-    │   ├── train.parquet
-    │   ├── validation.parquet
-    │   └── test.parquet
-    └── highway_7/
-        ├── train.parquet
-        ├── validation.parquet
-        └── test.parquet
-
-SAFETY:
-  - Never touches or modifies data/raw/ or processed_data/highway_*/.
-  - Writes to temporary files and validates row counts and schema before promotion.
-"""
-
 import argparse
 import gc
 import json

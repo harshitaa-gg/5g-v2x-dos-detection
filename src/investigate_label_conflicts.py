@@ -1,17 +1,3 @@
-"""
-investigate_label_conflicts.py
-
-Rigorous, read-only investigation script for analyzing conflicting labels,
-reception duplicates, and dataset construction artifacts in the 5G-V2X
-DoS Detection Project (VeReMi NextGen processed datasets).
-
-Produces:
-  - results/label_conflict_investigation/summary.json
-  - results/label_conflict_investigation/conflict_counts.csv
-  - results/label_conflict_investigation/representative_examples.csv
-  - results/label_conflict_investigation/report.md
-"""
-
 import json
 from pathlib import Path
 import numpy as np

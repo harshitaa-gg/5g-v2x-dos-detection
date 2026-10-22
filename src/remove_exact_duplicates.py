@@ -1,13 +1,3 @@
-"""
-Remove exact duplicate rows from each clean DoS dataset split.
-
-Inputs are never modified. Deduplicated Parquet files are written to:
-processed_data/preprocessed_deduplicated/...
-
-Run from the repository root:
-    python src/remove_exact_duplicates.py
-"""
-
 from pathlib import Path
 import pandas as pd
 

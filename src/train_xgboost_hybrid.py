@@ -1,31 +1,3 @@
-"""
-src/train_xgboost_hybrid.py
-===========================
-Phase 3B: Controlled Training and Comprehensive Evaluation of Transformer–XGBoost Hybrid Models.
-
-This script executes the four approved experimental configurations:
-  1. Highway 2 — Full Hybrid (71 features: 64 Transformer embeddings + 7 context features)
-  2. Highway 2 — Autonomous Ablation (68 features: 64 Transformer embeddings + 4 context features)
-  3. Highway 7 — Full Hybrid (71 features: 64 Transformer embeddings + 7 context features)
-  4. Highway 7 — Autonomous Ablation (68 features: 64 Transformer embeddings + 4 context features)
-
-Methodology & Leakage Safeguards:
----------------------------------
-1. Training Split Only:
-   - Model parameters (decision trees, split gains, weights) are fitted strictly on 'train'.
-2. Validation Split Only for Tuning & Decision Threshold:
-   - Hyperparameter selection chooses the model maximizing validation PR-AUC.
-   - Optimal decision threshold T* is selected on validation predictions maximizing F1.
-3. Test Split Strictly Held Out:
-   - Evaluated only once per final model using frozen weights and frozen threshold T*.
-   - Never used for hyperparameter tuning, stopping, or threshold selection.
-4. Independent Highway Scenarios:
-   - Highway 2 and Highway 7 are modeled completely independently.
-5. Exact 1-to-1 Window Tracking:
-   - All validation and test predictions are saved alongside original window_id, sender_id,
-     and ground-truth labels.
-"""
-
 import argparse
 import json
 import os

@@ -1,27 +1,3 @@
-"""
-validate_clean_dos_dataset.py
-
-Rigorous, read-only validation script for the clean DoS scenario dataset
-(processed_data/clean_dos_scenario/).
-
-Validates:
-  - File existence, schema consistency, and PyArrow types across all 6 splits.
-  - Row counts match source DoS files exactly.
-  - Zero null values across all 28 columns.
-  - Binary label distribution (0: benign background, 1: DoS attack).
-  - Delay integrity (delay == receive_time - send_time).
-  - Cross-split broadcast message overlap (must be 0).
-  - Sender identity persistence and temporal window boundaries across splits.
-  - Absence of cross-scenario conflicting labels.
-  - Explicit quarantine of distance_to_road_edge from planned model features.
-
-Outputs:
-  results/clean_dataset_validation/
-    ├── clean_dataset_summary.json
-    ├── split_validation_table.csv
-    └── cross_split_leakage_table.csv
-"""
-
 import json
 import sys
 from collections import Counter

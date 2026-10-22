@@ -1,10 +1,3 @@
-"""
-Inspect one actual VeReMi NextGen vehicle/message JSON file.
-
-This script only reads the data.
-It does not modify anything.
-"""
-
 from pathlib import Path
 import json
 

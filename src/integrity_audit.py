@@ -1,22 +1,3 @@
-"""
-src/integrity_audit.py
-======================
-Comprehensive, rigorous data-readiness audit for the Congestion-Aware
-Transformer-XGBoost Framework for Robust DoS Detection in 5G-V2X Vehicular Networks.
-
-Performs Audits A through G across all 6 highway/split combinations:
-  - Audit A: Dataset provenance, row counts, schema drift, labels, missingness
-  - Audit B: Duplicate records, vocabulary fitting, scaler fitting, feature rationale
-  - Audit C: Exact source-to-feature row alignment & feature reconstruction
-  - Audit D: Sender identity, temporal ordering, sequence validity, mixed-label rule
-  - Audit E: Train/validation/test leakage, sender overlap, time overlap
-  - Audit F: Tensor shapes, dtypes, finiteness, class balance, environment & memory readiness
-  - Audit G: Base-paper alignment and architectural comparison
-
-Usage:
-  python src/integrity_audit.py
-"""
-
 import gc
 import json
 import os

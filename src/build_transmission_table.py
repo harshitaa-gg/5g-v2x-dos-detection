@@ -1,36 +1,3 @@
-"""
-build_transmission_table.py
-===========================
-Option B: Rebuild Transmission-Level Datasets for 5G-V2X DoS Detection.
-
-This script aggregates reception-level deduplicated logs into transmission-level
-records where each row represents exactly ONE unique physical broadcast event,
-uniquely identified by `(sender_id, send_time)`.
-
-Key Architectural Design & Safeguards:
---------------------------------------
-1. Detection Vantage Point:
-   - Network-side / Edge detector (e.g., Roadside Unit / 5G C-V2X Misbehavior Authority)
-     monitoring sector transmissions and local channel congestion.
-   - Documented as an explicit project design choice.
-2. Invariant Sender Preservation:
-   - Strictly preserves all sender-side features: coordinates (x, y, z), kinematics
-     (speed, acceleration, heading), sensor noise, and driver profile.
-   - Enforces zero-tolerance consistency checks: aborts if any sender feature,
-     message_id, or label varies across reception copies.
-3. Candidate Transmission-Level Aggregates:
-   - `observed_reception_count`: Integer count of receiving neighbor logs for this packet.
-   - `mean_delay`: Mean transmission latency across all receiving neighbors (ns).
-   - `median_receiver_distance`: Median transmitter-to-receiver Euclidean distance (m).
-4. Deterministic Ordering & Leakage Prevention:
-   - Deterministically sorted by `sender_id` then `send_time`.
-   - Processed strictly split-by-split; zero cross-split history joining.
-   - `distance_to_road_edge` and raw `attacker` remain quarantined/excluded.
-5. Non-Destructive Storage:
-   - Outputs saved to: `processed_data/transmissions/{highway}/{split}.parquet`
-   - Existing reception sequences and datasets are completely untouched.
-"""
-
 import argparse
 import json
 import os

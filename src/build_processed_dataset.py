@@ -1,20 +1,3 @@
-"""
-build_processed_dataset.py
-
-Incremental, memory-efficient Parquet dataset builder for the
-5G-V2X DoS Detection Project (VeReMi NextGen dataset).
-
-This builder flattens raw JSON vehicular message logs into the canonical
-project schema, preserving nanosecond integer timestamps, exact integer
-message IDs, and binary labels.
-
-SAFETY POLICY:
-  - This builder WILL NOT overwrite an existing processed dataset without
-    an explicit `--overwrite` flag.
-  - Temporary files are validated before promotion to prevent corrupted outputs.
-  - Test/sample mode is strictly separated from production builds.
-"""
-
 import argparse
 import gc
 import json

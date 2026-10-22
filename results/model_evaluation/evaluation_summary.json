@@ -1,0 +1,225 @@
+{
+  "evaluation_timestamp": "2026-10-22T10:11:11.139844+00:00",
+  "results": {
+    "highway_2_full": {
+      "title": "Highway 2 \u2014 Full Model",
+      "experiment_key": "highway_2_full",
+      "highway": "highway_2",
+      "variant": "full",
+      "n_samples": 22043,
+      "n_features": 71,
+      "threshold": 0.28,
+      "threshold_source": "Validation-Selected Optimal Threshold",
+      "confusion_matrix": {
+        "tn": 11770,
+        "fp": 135,
+        "fn": 121,
+        "tp": 10017
+      },
+      "metrics": {
+        "accuracy": 0.9883863357982126,
+        "balanced_accuracy": 0.9883624669191367,
+        "precision": 0.9867021276595744,
+        "recall": 0.9880647070428092,
+        "specificity": 0.9886602267954641,
+        "false_positive_rate": 0.01133977320453591,
+        "false_negative_rate": 0.011935292957190768,
+        "f1_score": 0.9873829472646624,
+        "roc_auc": 0.9994528260943955,
+        "pr_auc": 0.9993913416833409
+      },
+      "classification_report_dict": {
+        "Benign (Normal)": {
+          "precision": 0.9898242368177613,
+          "recall": 0.9886602267954641,
+          "f1-score": 0.9892418893931754,
+          "support": 11905.0
+        },
+        "DoS Attack": {
+          "precision": 0.9867021276595744,
+          "recall": 0.9880647070428092,
+          "f1-score": 0.9873829472646624,
+          "support": 10138.0
+        },
+        "accuracy": 0.9883863357982126,
+        "macro avg": {
+          "precision": 0.9882631822386678,
+          "recall": 0.9883624669191367,
+          "f1-score": 0.9883124183289189,
+          "support": 22043.0
+        },
+        "weighted avg": {
+          "precision": 0.9883883187192403,
+          "recall": 0.9883863357982126,
+          "f1-score": 0.9883869261259765,
+          "support": 22043.0
+        }
+      }
+    },
+    "highway_2_ablation": {
+      "title": "Highway 2 \u2014 Ablation Model",
+      "experiment_key": "highway_2_ablation",
+      "highway": "highway_2",
+      "variant": "ablation",
+      "n_samples": 22043,
+      "n_features": 68,
+      "threshold": 0.28,
+      "threshold_source": "Validation-Selected Optimal Threshold",
+      "confusion_matrix": {
+        "tn": 11770,
+        "fp": 135,
+        "fn": 130,
+        "tp": 10008
+      },
+      "metrics": {
+        "accuracy": 0.9879780429161185,
+        "balanced_accuracy": 0.9879185923876709,
+        "precision": 0.9866903283052352,
+        "recall": 0.9871769579798777,
+        "specificity": 0.9886602267954641,
+        "false_positive_rate": 0.01133977320453591,
+        "false_negative_rate": 0.012823042020122312,
+        "f1_score": 0.986933583156649,
+        "roc_auc": 0.9995409630177884,
+        "pr_auc": 0.9994769578805354
+      },
+      "classification_report_dict": {
+        "Benign (Normal)": {
+          "precision": 0.9890756302521009,
+          "recall": 0.9886602267954641,
+          "f1-score": 0.9888678848981306,
+          "support": 11905.0
+        },
+        "DoS Attack": {
+          "precision": 0.9866903283052352,
+          "recall": 0.9871769579798777,
+          "f1-score": 0.986933583156649,
+          "support": 10138.0
+        },
+        "accuracy": 0.9879780429161185,
+        "macro avg": {
+          "precision": 0.9878829792786681,
+          "recall": 0.9879185923876709,
+          "f1-score": 0.9879007340273898,
+          "support": 22043.0
+        },
+        "weighted avg": {
+          "precision": 0.9879785839726777,
+          "recall": 0.9879780429161185,
+          "f1-score": 0.9879782622943498,
+          "support": 22043.0
+        }
+      }
+    },
+    "highway_7_full": {
+      "title": "Highway 7 \u2014 Full Model",
+      "experiment_key": "highway_7_full",
+      "highway": "highway_7",
+      "variant": "full",
+      "n_samples": 56892,
+      "n_features": 71,
+      "threshold": 0.59,
+      "threshold_source": "Validation-Selected Optimal Threshold",
+      "confusion_matrix": {
+        "tn": 31303,
+        "fp": 50,
+        "fn": 18,
+        "tp": 25521
+      },
+      "metrics": {
+        "accuracy": 0.9988047528650776,
+        "balanced_accuracy": 0.9988502259292711,
+        "precision": 0.9980446599663682,
+        "recall": 0.9992951955832257,
+        "specificity": 0.9984052562753165,
+        "false_positive_rate": 0.0015947437246834433,
+        "false_negative_rate": 0.0007048044167743451,
+        "f1_score": 0.9986695362942672,
+        "roc_auc": 0.9999928052636375,
+        "pr_auc": 0.9999913122525991
+      },
+      "classification_report_dict": {
+        "Benign (Normal)": {
+          "precision": 0.9994253057054372,
+          "recall": 0.9984052562753165,
+          "f1-score": 0.9989150205826978,
+          "support": 31353.0
+        },
+        "DoS Attack": {
+          "precision": 0.9980446599663682,
+          "recall": 0.9992951955832257,
+          "f1-score": 0.9986695362942672,
+          "support": 25539.0
+        },
+        "accuracy": 0.9988047528650776,
+        "macro avg": {
+          "precision": 0.9987349828359027,
+          "recall": 0.9988502259292711,
+          "f1-score": 0.9987922784384825,
+          "support": 56892.0
+        },
+        "weighted avg": {
+          "precision": 0.9988055294358372,
+          "recall": 0.9988047528650776,
+          "f1-score": 0.9988048219037582,
+          "support": 56892.0
+        }
+      }
+    },
+    "highway_7_ablation": {
+      "title": "Highway 7 \u2014 Ablation Model",
+      "experiment_key": "highway_7_ablation",
+      "highway": "highway_7",
+      "variant": "ablation",
+      "n_samples": 56892,
+      "n_features": 68,
+      "threshold": 0.77,
+      "threshold_source": "Validation-Selected Optimal Threshold",
+      "confusion_matrix": {
+        "tn": 31304,
+        "fp": 49,
+        "fn": 18,
+        "tp": 25521
+      },
+      "metrics": {
+        "accuracy": 0.9988223300288266,
+        "balanced_accuracy": 0.998866173366518,
+        "precision": 0.998083691826359,
+        "recall": 0.9992951955832257,
+        "specificity": 0.9984371511498102,
+        "false_positive_rate": 0.0015628488501897744,
+        "false_negative_rate": 0.0007048044167743451,
+        "f1_score": 0.9986890762879337,
+        "roc_auc": 0.9999928314898942,
+        "pr_auc": 0.9999913448712179
+      },
+      "classification_report_dict": {
+        "Benign (Normal)": {
+          "precision": 0.999425324053381,
+          "recall": 0.9984371511498102,
+          "f1-score": 0.9989309932189868,
+          "support": 31353.0
+        },
+        "DoS Attack": {
+          "precision": 0.998083691826359,
+          "recall": 0.9992951955832257,
+          "f1-score": 0.9986890762879337,
+          "support": 25539.0
+        },
+        "accuracy": 0.9988223300288266,
+        "macro avg": {
+          "precision": 0.9987545079398701,
+          "recall": 0.998866173366518,
+          "f1-score": 0.9988100347534603,
+          "support": 56892.0
+        },
+        "weighted avg": {
+          "precision": 0.9988230610735962,
+          "recall": 0.9988223300288266,
+          "f1-score": 0.9988223959381359,
+          "support": 56892.0
+        }
+      }
+    }
+  }
+}

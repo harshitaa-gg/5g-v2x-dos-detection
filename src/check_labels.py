@@ -1,11 +1,3 @@
-"""
-Check whether the actual VeReMi NextGen JSON messages
-contain an attacker/label field.
-
-This script only reads the dataset.
-It does not modify anything.
-"""
-
 from pathlib import Path
 import json
 
