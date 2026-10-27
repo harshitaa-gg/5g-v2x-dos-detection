@@ -42,10 +42,8 @@ FUSED_BASE = os.path.join(PROJECT_ROOT, "processed_data", "fused_features")
 DEFAULT_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "results", "model_evaluation")
 
 MODELS_CONFIG = [
-    ("highway_2", "full", "Highway 2 — Full Model"),
-    ("highway_2", "ablation", "Highway 2 — Ablation Model"),
-    ("highway_7", "full", "Highway 7 — Full Model"),
-    ("highway_7", "ablation", "Highway 7 — Ablation Model"),
+    ("highway_2", "full", "Final model tested on Highway 2"),
+    ("highway_7", "full", "Final model tested on Highway 7"),
 ]
 
 
